@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 from app.db.base import get_db
 from app.db.models import DesignChange, User
 from app.models.schemas import (
@@ -59,7 +59,7 @@ def get_design_change(
 def list_design_changes(
     skip: int = 0,
     limit: int = 100,
-    project_id: int = None,
+    project_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
@@ -125,7 +125,7 @@ def transition_workflow(
     )
     db.add(history)
     
-    db_change.workflow_status = new_status
+    db_change.workflow_status = new_status  # type: ignore
     db.commit()
     db.refresh(db_change)
     return db_change

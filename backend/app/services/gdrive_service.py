@@ -9,13 +9,19 @@ from app.core.config import settings
 
 class GoogleDriveService:
     def __init__(self):
-        self.credentials = service_account.Credentials.from_service_account_file(
-            settings.GOOGLE_DRIVE_CREDENTIALS_PATH,
-            scopes=['https://www.googleapis.com/auth/drive.readonly']
-        )
-        self.service = build('drive', 'v3', credentials=self.credentials)
+        try:
+            self.credentials = service_account.Credentials.from_service_account_file(
+                settings.GOOGLE_DRIVE_CREDENTIALS_PATH,
+                scopes=['https://www.googleapis.com/auth/drive.readonly']
+            )
+            self.service = build('drive', 'v3', credentials=self.credentials)
+        except Exception as e:
+            print(f"Warning: Failed to initialize Google Drive service: {e}")
+            self.service = None
     
     def list_files(self, folder_id: Optional[str] = None, query: Optional[str] = None) -> List[Dict]:
+        if not self.service:
+            return []
         try:
             if folder_id:
                 query = f"'{folder_id}' in parents"
@@ -32,6 +38,8 @@ class GoogleDriveService:
             return []
     
     def download_file(self, file_id: str) -> bytes:
+        if not self.service:
+            return b""
         try:
             request = self.service.files().get_media(fileId=file_id)
             file_buffer = io.BytesIO()
@@ -48,6 +56,8 @@ class GoogleDriveService:
             return b""
     
     def get_file_content(self, file_id: str) -> str:
+        if not self.service:
+            return ""
         try:
             request = self.service.files().export_media(
                 fileId=file_id,
@@ -76,6 +86,8 @@ class GoogleDriveService:
             return pd.DataFrame()
     
     def get_file_metadata(self, file_id: str) -> Dict:
+        if not self.service:
+            return {}
         try:
             file = self.service.files().get(
                 fileId=file_id,

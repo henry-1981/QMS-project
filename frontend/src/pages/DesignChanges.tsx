@@ -1,6 +1,42 @@
+import { useState, useEffect } from 'react';
 import { Plus, Search, Filter } from 'lucide-react';
+import { designChangeService } from '../services/designChangeService';
+import { DesignChange } from '../types';
+
+const getStatusColor = (status: string) => {
+  switch (status) {
+    case 'draft': return 'bg-gray-100 text-gray-800';
+    case 'ra_review': return 'bg-orange-50 text-orange-600';
+    case 'qa_review': return 'bg-yellow-50 text-yellow-600';
+    case 'approved': return 'bg-green-50 text-green-600';
+    case 'rejected': return 'bg-red-50 text-red-600';
+    default: return 'bg-blue-50 text-blue-600';
+  }
+};
 
 export const DesignChanges = () => {
+  const [changes, setChanges] = useState<DesignChange[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchChanges = async () => {
+      try {
+        const data = await designChangeService.getAll();
+        setChanges(data);
+      } catch (error) {
+        console.error('Failed to fetch design changes:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchChanges();
+  }, []);
+
+  if (loading) {
+    return <div className="p-8 text-center text-gray-500">Loading design changes...</div>;
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -39,25 +75,32 @@ export const DesignChanges = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <tr key={i} className="hover:bg-gray-50 transition-colors cursor-pointer">
-                <td className="px-6 py-4 text-sm font-medium text-blue-600">DCR-2024-00{i}</td>
-                <td className="px-6 py-4 text-sm text-gray-800">Update Battery Module Specs</td>
-                <td className="px-6 py-4 text-sm text-gray-600">Modification</td>
+            {changes.map((change) => (
+              <tr key={change.id} className="hover:bg-gray-50 transition-colors cursor-pointer">
+                <td className="px-6 py-4 text-sm font-medium text-blue-600">{change.change_number}</td>
+                <td className="px-6 py-4 text-sm text-gray-800">{change.title}</td>
+                <td className="px-6 py-4 text-sm text-gray-600">{change.change_type}</td>
                 <td className="px-6 py-4">
-                  <span className="px-2 py-1 text-xs font-medium text-orange-600 bg-orange-50 rounded-full">
-                    RA Review
+                  <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(change.workflow_status)}`}>
+                    {change.workflow_status.replace('_', ' ').toUpperCase()}
                   </span>
                 </td>
                 <td className="px-6 py-4 text-sm text-gray-600">
                   <div className="flex items-center space-x-2">
-                    <div className="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center text-xs">HJ</div>
-                    <span>Hong Gil-dong</span>
+                    <div className="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center text-xs">U</div>
+                    <span>{change.current_assignee || 'Unassigned'}</span>
                   </div>
                 </td>
-                <td className="px-6 py-4 text-sm text-gray-500">2024-01-1{i}</td>
+                <td className="px-6 py-4 text-sm text-gray-500">{new Date(change.created_at).toLocaleDateString()}</td>
               </tr>
             ))}
+            {changes.length === 0 && (
+              <tr>
+                <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                  No design changes found.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
         
