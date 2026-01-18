@@ -1,14 +1,24 @@
+from typing import List
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.db.base import get_db
 from app.db.models import DesignChange, User, AgentAnalysis
-from app.models.schemas import AgentAnalysisRequest, AgentAnalysisResponse
+from app.models.schemas import AgentAnalysisRequest, AgentAnalysisResponse, GeminiModelResponse
 from app.utils.auth import get_current_active_user
 from app.agents.design_engineer_agent import design_engineer_agent
 from app.agents.ra_agent import ra_agent
 from app.agents.qa_agent import qa_agent
+from app.services.gemini_service import gemini_service
 
 router = APIRouter()
+
+
+@router.get("/models", response_model=List[GeminiModelResponse])
+async def list_models(
+    current_user: User = Depends(get_current_active_user)
+):
+    """사용 가능한 Gemini 모델 목록을 가져옵니다."""
+    return gemini_service.list_available_models()
 
 
 @router.post("/analyze/impact", response_model=AgentAnalysisResponse)
@@ -27,6 +37,10 @@ async def analyze_impact(
         "description": change.description,
         "change_type": change.change_type
     }
+    
+    # 모델 동적 설정
+    if request.model_name:
+        design_engineer_agent._init_llm(model_name=request.model_name)
     
     result = await design_engineer_agent.analyze_impact(change_data)
     
@@ -61,6 +75,10 @@ async def analyze_risk(
         "change_type": change.change_type
     }
     
+    # 모델 동적 설정
+    if request.model_name:
+        design_engineer_agent._init_llm(model_name=request.model_name)
+        
     result = await design_engineer_agent.analyze_risks(change_data, risk_file_id)
     
     analysis = AgentAnalysis(

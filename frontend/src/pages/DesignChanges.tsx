@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Plus, Search, Filter } from 'lucide-react';
 import { designChangeService } from '../services/designChangeService';
-import { DesignChange } from '../types';
+import type { DesignChange } from '../types';
 
 const getStatusColor = (status: string) => {
   switch (status) {

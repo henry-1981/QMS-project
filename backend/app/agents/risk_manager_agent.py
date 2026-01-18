@@ -1,14 +1,18 @@
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
+import json
+import logging
 from app.agents.base_agent import BaseAgent, AgentState
 from app.services.vector_db_service import vector_db_service
 from app.services.gdrive_service import gdrive_service
+
+logger = logging.getLogger(__name__)
 
 
 class RiskManagerAgent(BaseAgent):
     def __init__(self):
         super().__init__("risk_manager")
     
-    def create_prompt_reassess(self, risk_data: Dict[str, Any], change_description: str, iso_guidance: str) -> str:
+    def create_prompt_reassess(self, risk_data: str, change_description: str, iso_guidance: str) -> str:
         return f"""당신은 의료기기 리스크 관리 전문가입니다.
 
 [설계 변경 내용]
@@ -100,11 +104,15 @@ class RiskManagerAgent(BaseAgent):
         prompt = self.create_prompt_reassess(risk_data, change_description, iso_guidance)
         response = await self.llm.ainvoke(prompt)
         
-        import json
         try:
-            result = json.loads(response.content)
-        except:
-            result = {"error": "Failed to parse response", "raw": response.content}
+            content = response.content
+            if isinstance(content, str):
+                result = json.loads(content)
+            else:
+                result = {"error": "응답이 문자열 형식이 아님", "raw": str(content)}
+        except json.JSONDecodeError as e:
+            logger.warning(f"JSON 파싱 실패: {e}")
+            result = {"error": "JSON 파싱 실패", "raw": str(response.content)}
         
         return result
     
@@ -120,11 +128,15 @@ class RiskManagerAgent(BaseAgent):
         prompt = self.create_prompt_identify(change_description, usability_guidance)
         response = await self.llm.ainvoke(prompt)
         
-        import json
         try:
-            result = json.loads(response.content)
-        except:
-            result = {"error": "Failed to parse response", "raw": response.content}
+            content = response.content
+            if isinstance(content, str):
+                result = json.loads(content)
+            else:
+                result = {"error": "응답이 문자열 형식이 아님", "raw": str(content)}
+        except json.JSONDecodeError as e:
+            logger.warning(f"JSON 파싱 실패: {e}")
+            result = {"error": "JSON 파싱 실패", "raw": str(response.content)}
         
         return result
     
@@ -143,18 +155,63 @@ class RiskManagerAgent(BaseAgent):
             
             return True
         except Exception as e:
-            print(f"Error updating risk Excel: {e}")
+            logger.error(f"위험 관리 엑셀 업데이트 실패: {e}")
             return False
     
     async def execute(self, state: AgentState) -> AgentState:
         change_id = state['change_id']
+        state['messages'].append(f"[{self.agent_type}] 설계 변경 {change_id}에 대한 위험 관리 시작")
         
-        state['messages'].append(f"[{self.agent_type}] Performing risk management for change {change_id}")
-        
-        state['analysis_results']['risk_manager'] = {
-            'status': 'completed',
-            'message': 'Risk management completed'
-        }
+        try:
+            design_change = self._get_design_change(change_id)
+            
+            if not design_change:
+                logger.error(f"설계 변경 ID {change_id}를 찾을 수 없음")
+                state['analysis_results']['risk_manager'] = {
+                    'status': 'error',
+                    'error': f'설계 변경 ID {change_id}를 찾을 수 없습니다'
+                }
+                return state
+            
+            project = self._get_project_for_change(change_id)
+            existing_risks: List[Dict[str, Any]] = []
+            
+            if project:
+                risk_items = self._get_risks_for_project(project.id)
+                existing_risks = [
+                    {
+                        'risk_number': r.risk_number,
+                        'hazard': r.hazard,
+                        'hazardous_situation': r.hazardous_situation,
+                        'harm': r.harm,
+                        'severity': r.severity,
+                        'probability': r.probability,
+                        'risk_level': r.risk_level
+                    }
+                    for r in risk_items
+                ]
+            
+            reassess_result = await self.reassess_existing_risks(
+                existing_risks,
+                design_change.description
+            )
+            
+            new_risks_result = await self.identify_new_risks(design_change.description)
+            
+            state['messages'].append(f"[{self.agent_type}] 위험 관리 완료")
+            state['analysis_results']['risk_manager'] = {
+                'status': 'completed',
+                'reassessed_risks': reassess_result,
+                'new_risks': new_risks_result
+            }
+            
+        except Exception as e:
+            logger.exception(f"위험 관리자 분석 중 오류 발생: {e}")
+            state['messages'].append(f"[{self.agent_type}] 분석 중 오류 발생: {str(e)}")
+            state['analysis_results']['risk_manager'] = {
+                'status': 'error',
+                'error': str(e)
+            }
         
         return state
 

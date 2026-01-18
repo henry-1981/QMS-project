@@ -10,10 +10,16 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String(100), unique=True, nullable=False, index=True)
     email = Column(String(255), unique=True, nullable=False, index=True)
-    password_hash = Column(String(255), nullable=False)
+    password_hash = Column(String(255), nullable=True)
     full_name = Column(String(200), nullable=False)
     role = Column(String(50), nullable=False)
     is_active = Column(Boolean, default=True)
+    
+    google_id = Column(String(255), unique=True, nullable=True, index=True)
+    google_refresh_token = Column(Text, nullable=True)
+    google_access_token = Column(Text, nullable=True)
+    google_token_expiry = Column(DateTime(timezone=True), nullable=True)
+    
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 

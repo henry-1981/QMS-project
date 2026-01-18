@@ -1,9 +1,15 @@
 import client from '../api/client';
-import { DesignChange, DesignChangeCreate, DesignChangeUpdate, WorkflowTransition } from '../types';
+import type { DesignChange, DesignChangeCreate, DesignChangeUpdate, WorkflowTransition } from '../types';
+
+interface GetAllParams {
+  skip: number;
+  limit: number;
+  project_id?: number;
+}
 
 export const designChangeService = {
   getAll: async (skip = 0, limit = 100, projectId?: number) => {
-    const params: any = { skip, limit };
+    const params: GetAllParams = { skip, limit };
     if (projectId) params.project_id = projectId;
     
     const response = await client.get<DesignChange[]>('/design_changes/', { params });

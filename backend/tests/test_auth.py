@@ -15,7 +15,7 @@ def test_register_duplicate_username(client, test_user_data):
     client.post("/api/v1/auth/register", json=test_user_data)
     response = client.post("/api/v1/auth/register", json=test_user_data)
     assert response.status_code == status.HTTP_400_BAD_REQUEST
-    assert "already registered" in response.json()["detail"]
+    assert "이미 등록된" in response.json()["detail"] or "already registered" in response.json()["detail"]
 
 
 def test_login_success(client, test_user_data):

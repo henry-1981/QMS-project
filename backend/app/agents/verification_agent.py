@@ -1,6 +1,10 @@
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
+import json
+import logging
 from app.agents.base_agent import BaseAgent, AgentState
 from app.services.vector_db_service import vector_db_service
+
+logger = logging.getLogger(__name__)
 
 
 class VerificationValidationAgent(BaseAgent):
@@ -110,11 +114,15 @@ class VerificationValidationAgent(BaseAgent):
         prompt = self.create_verification_plan_prompt(change_data, sop_guidance)
         response = await self.llm.ainvoke(prompt)
         
-        import json
         try:
-            result = json.loads(response.content)
-        except:
-            result = {"error": "Failed to parse response", "raw": response.content}
+            content = response.content
+            if isinstance(content, str):
+                result = json.loads(content)
+            else:
+                result = {"error": "응답이 문자열 형식이 아님", "raw": str(content)}
+        except json.JSONDecodeError as e:
+            logger.warning(f"JSON 파싱 실패: {e}")
+            result = {"error": "JSON 파싱 실패", "raw": str(response.content)}
         
         return result
     
@@ -134,11 +142,15 @@ class VerificationValidationAgent(BaseAgent):
         prompt = self.create_checklist_prompt(change_type, iec_62304_class, sop_guidance)
         response = await self.llm.ainvoke(prompt)
         
-        import json
         try:
-            result = json.loads(response.content)
-        except:
-            result = {"error": "Failed to parse response", "raw": response.content}
+            content = response.content
+            if isinstance(content, str):
+                result = json.loads(content)
+            else:
+                result = {"error": "응답이 문자열 형식이 아님", "raw": str(content)}
+        except json.JSONDecodeError as e:
+            logger.warning(f"JSON 파싱 실패: {e}")
+            result = {"error": "JSON 파싱 실패", "raw": str(response.content)}
         
         return result
     
@@ -177,23 +189,63 @@ class VerificationValidationAgent(BaseAgent):
         
         response = await self.llm.ainvoke(prompt)
         
-        import json
         try:
-            result = json.loads(response.content)
-        except:
-            result = {"error": "Failed to parse response", "raw": response.content}
+            content = response.content
+            if isinstance(content, str):
+                result = json.loads(content)
+            else:
+                result = {"error": "응답이 문자열 형식이 아님", "raw": str(content)}
+        except json.JSONDecodeError as e:
+            logger.warning(f"JSON 파싱 실패: {e}")
+            result = {"error": "JSON 파싱 실패", "raw": str(response.content)}
         
         return result
     
     async def execute(self, state: AgentState) -> AgentState:
         change_id = state['change_id']
+        state['messages'].append(f"[{self.agent_type}] 설계 변경 {change_id}에 대한 검증 계획 수립 시작")
         
-        state['messages'].append(f"[{self.agent_type}] Planning verification for change {change_id}")
-        
-        state['analysis_results']['verification_validation'] = {
-            'status': 'completed',
-            'message': 'Verification planning completed'
-        }
+        try:
+            design_change = self._get_design_change(change_id)
+            
+            if not design_change:
+                logger.error(f"설계 변경 ID {change_id}를 찾을 수 없음")
+                state['analysis_results']['verification_validation'] = {
+                    'status': 'error',
+                    'error': f'설계 변경 ID {change_id}를 찾을 수 없습니다'
+                }
+                return state
+            
+            project = self._get_project_for_change(change_id)
+            
+            change_data = {
+                'title': design_change.title,
+                'description': design_change.description,
+                'change_type': design_change.change_type
+            }
+            
+            verification_result = await self.generate_verification_plan(change_data)
+            
+            iec_class = project.iec_62304_class if project else "B"
+            checklist_result = await self.generate_checklist(
+                design_change.change_type or "일반",
+                iec_class
+            )
+            
+            state['messages'].append(f"[{self.agent_type}] 검증 계획 수립 완료")
+            state['analysis_results']['verification_validation'] = {
+                'status': 'completed',
+                'verification_plan': verification_result,
+                'checklist': checklist_result
+            }
+            
+        except Exception as e:
+            logger.exception(f"검증/밸리데이션 분석 중 오류 발생: {e}")
+            state['messages'].append(f"[{self.agent_type}] 분석 중 오류 발생: {str(e)}")
+            state['analysis_results']['verification_validation'] = {
+                'status': 'error',
+                'error': str(e)
+            }
         
         return state
 

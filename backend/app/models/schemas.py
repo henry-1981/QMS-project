@@ -37,6 +37,11 @@ class TokenData(BaseModel):
     username: Optional[str] = None
 
 
+class GoogleLoginResponse(BaseModel):
+    login_url: str
+    message: str
+
+
 class DesignProjectBase(BaseModel):
     project_code: str
     project_name: str
@@ -106,6 +111,13 @@ class AgentAnalysisRequest(BaseModel):
     change_id: int
     agent_type: str
     analysis_type: str
+    model_name: Optional[str] = "gemini-1.5-pro"
+
+
+class GeminiModelResponse(BaseModel):
+    name: str
+    display_name: str
+    description: str
 
 
 class AgentAnalysisResponse(BaseModel):

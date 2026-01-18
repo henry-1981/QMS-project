@@ -1,6 +1,15 @@
+import type { LucideIcon } from 'lucide-react';
 import { BarChart3, AlertTriangle, FileCheck, Activity } from 'lucide-react';
 
-const StatCard = ({ title, value, change, icon: Icon, color }: any) => (
+interface StatCardProps {
+  title: string;
+  value: string;
+  change: string;
+  icon: LucideIcon;
+  color: string;
+}
+
+const StatCard = ({ title, value, change, icon: Icon, color }: StatCardProps) => (
   <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
     <div className="flex justify-between items-start">
       <div>

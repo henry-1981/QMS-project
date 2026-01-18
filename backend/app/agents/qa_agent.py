@@ -1,6 +1,10 @@
-from typing import Dict, Any
+from typing import Dict, Any, Optional
+import json
+import logging
 from app.agents.base_agent import BaseAgent, AgentState
 from app.services.vector_db_service import vector_db_service
+
+logger = logging.getLogger(__name__)
 
 
 class QualityAssuranceAgent(BaseAgent):
@@ -61,23 +65,65 @@ class QualityAssuranceAgent(BaseAgent):
         prompt = self.create_prompt(change_data, test_results, quality_criteria)
         response = await self.llm.ainvoke(prompt)
         
-        import json
         try:
-            result = json.loads(response.content)
-        except:
-            result = {"error": "Failed to parse response", "raw": response.content}
+            content = response.content
+            if isinstance(content, str):
+                result = json.loads(content)
+            else:
+                result = {"error": "응답이 문자열 형식이 아님", "raw": str(content)}
+        except json.JSONDecodeError as e:
+            logger.warning(f"JSON 파싱 실패: {e}")
+            result = {"error": "JSON 파싱 실패", "raw": str(response.content)}
         
         return result
     
     async def execute(self, state: AgentState) -> AgentState:
         change_id = state['change_id']
+        state['messages'].append(f"[{self.agent_type}] 설계 변경 {change_id}에 대한 품질 검토 시작")
         
-        state['messages'].append(f"[{self.agent_type}] Reviewing test results for change {change_id}")
-        
-        state['analysis_results']['quality_assurance'] = {
-            'status': 'completed',
-            'message': 'Test review completed'
-        }
+        try:
+            design_change = self._get_design_change(change_id)
+            
+            if not design_change:
+                logger.error(f"설계 변경 ID {change_id}를 찾을 수 없음")
+                state['analysis_results']['quality_assurance'] = {
+                    'status': 'error',
+                    'error': f'설계 변경 ID {change_id}를 찾을 수 없습니다'
+                }
+                return state
+            
+            change_data = {
+                'title': design_change.title,
+                'description': design_change.description,
+                'change_type': design_change.change_type
+            }
+            
+            previous_results = state.get('analysis_results', {})
+            test_results = previous_results.get('verification_validation', {}).get('verification_plan', {})
+            
+            if not test_results:
+                test_results = {
+                    'total_tests': 0,
+                    'passed': 0,
+                    'failed': 0,
+                    'details': '검증 결과 대기 중'
+                }
+            
+            qa_result = await self.review_test_results(change_data, test_results)
+            
+            state['messages'].append(f"[{self.agent_type}] 품질 검토 완료")
+            state['analysis_results']['quality_assurance'] = {
+                'status': 'completed',
+                'quality_review': qa_result
+            }
+            
+        except Exception as e:
+            logger.exception(f"품질 보증 분석 중 오류 발생: {e}")
+            state['messages'].append(f"[{self.agent_type}] 분석 중 오류 발생: {str(e)}")
+            state['analysis_results']['quality_assurance'] = {
+                'status': 'error',
+                'error': str(e)
+            }
         
         return state
 

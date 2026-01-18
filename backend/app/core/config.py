@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 from pydantic_settings import BaseSettings
 from pydantic import AnyHttpUrl
 
@@ -14,12 +14,24 @@ class Settings(BaseSettings):
     
     DATABASE_URL: str
     
-    GOOGLE_API_KEY: str
-    GOOGLE_DRIVE_CREDENTIALS_PATH: str
+    GOOGLE_API_KEY: Optional[str] = None
+    GOOGLE_CLIENT_ID: Optional[str] = None
+    GOOGLE_CLIENT_SECRET: Optional[str] = None
+    GOOGLE_REDIRECT_URI: Optional[str] = "http://localhost:8000/api/v1/auth/google/callback"
+    GOOGLE_DRIVE_CREDENTIALS_PATH: Optional[str] = None
+    
+    GOOGLE_OAUTH_SCOPES: List[str] = [
+        "openid",
+        "https://www.googleapis.com/auth/userinfo.email",
+        "https://www.googleapis.com/auth/userinfo.profile",
+        "https://www.googleapis.com/auth/drive.readonly",
+    ]
     
     CHROMA_PERSIST_DIRECTORY: str = "./chroma_db"
+    LOCAL_STORAGE_PATH: str = "./qms_storage"
     
     BACKEND_CORS_ORIGINS: List[AnyHttpUrl] = []
+    FRONTEND_URL: str = "http://localhost:5173"
     
     HOST: str = "0.0.0.0"
     PORT: int = 8000
