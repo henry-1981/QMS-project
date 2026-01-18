@@ -4,3 +4,11 @@ __pycache__/
 .DS_Store
 venv/
 .pytest_cache/
+
+# AI Agent artifacts
+.ai-todo.md
+.agent/
+.gemini/
+task.md
+implementation_plan.md
+walkthrough.md
